@@ -1,0 +1,326 @@
+@import "tailwindcss";
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  margin: 0;
+}
+
+@font-face {
+  font-family: "Morning Calligraphy";
+  src: url("/brand/morning-calligraphy.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face { font-family: "Morning Quote Kai"; src: url("/fonts/quote-kai.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Morning Quote Xingkai"; src: url("/fonts/quote-xingkai.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Morning Quote Li"; src: url("/fonts/quote-li.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Morning Quote Serif"; src: url("/fonts/quote-serif.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Morning Quote Hand"; src: url("/fonts/quote-hand.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+@font-face { font-family: "Morning Quote Slab"; src: url("/fonts/quote-slab.woff2") format("woff2"); font-style: normal; font-weight: 400; font-display: swap; }
+
+.welcome-page, .inspiration-page, .checkin-page {
+  --morning-ink: #213f35;
+  --morning-muted: #778078;
+  --morning-gold: #b58a51;
+  --morning-paper: #f7f5ed;
+  color: var(--morning-ink);
+  font-family: "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+}
+
+.welcome-page {
+  min-height: 100svh;
+  padding: 30px clamp(22px, 5vw, 80px) 23px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #f7f5ed;
+}
+.welcome-page::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at 21% 37%, #edce9166 0, #f2e6cd55 22%, transparent 52%),
+    radial-gradient(ellipse at 91% 94%, #c7d4bc50, transparent 42%);
+}
+.welcome-page::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  width: 950px;
+  height: 340px;
+  left: -245px;
+  bottom: -150px;
+  border: 1px solid #a9b6a44a;
+  border-radius: 50%;
+  box-shadow: 0 -22px 0 -21px #a9b6a444, 0 -48px 0 -47px #a9b6a433, 0 -80px 0 -79px #a9b6a433;
+  transform: rotate(-11deg);
+}
+.welcome-header, .welcome-layout, .welcome-footer {
+  width: 100%;
+  max-width: 1280px;
+  margin-inline: auto;
+}
+.university-brand { display: flex; align-items: center; gap: 24px; }
+.welcome-header { flex: 0 0 auto; min-height: 64px; display: flex; align-items: center; position: relative; z-index: 1; }
+.university-brand__school { display: flex; align-items: center; flex-shrink: 1; min-width: 0; }
+.school-brand-image { display: block; width: 246px; height: auto; max-width: 100%; filter: brightness(0) saturate(100%); opacity: .82; }
+.university-brand__divider { width: 1px; height: 38px; background: #213f3530; }
+.university-brand__college { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.college-emblem { display: block; width: 54px; height: 54px; overflow: hidden; flex-shrink: 0; }
+.college-emblem img { height: 54px; width: auto; max-width: none; }
+.college-wordmark { display: flex; flex-direction: column; gap: 5px; }
+.college-wordmark strong { font-size: 16px; font-weight: 500; letter-spacing: .1em; }
+.college-wordmark > span { font-size: 7px; letter-spacing: .03em; opacity: .7; }
+.welcome-layout { display: grid; grid-template-columns: 1.15fr 1fr; align-items: center; gap: 72px; flex: 1; padding: 52px 28px 55px; }
+.eyebrow { display: flex; gap: 12px; align-items: center; font-size: 10px; font-weight: 500; letter-spacing: .22em; color: #7e8e78; }
+.eyebrow > span { height: 5px; width: 5px; background: #ae8958; border-radius: 50%; }
+.morning-title-wrap { position: relative; width: fit-content; margin: 18px 0 17px; }
+.morning-title { position: relative; z-index: 1; font-family: "Morning Calligraphy", "STXingkai", "KaiTi", serif; font-weight: 400; font-size: clamp(100px, 10.8vw, 158px); letter-spacing: .01em; line-height: 1.02; margin: 0; transform: rotate(-4deg); }
+.morning-title > span { display: block; margin: -10px 0 0 115px; color: #a77c43; }
+.morning-title-orbit { position: absolute; width: 225px; height: 225px; border: 1px solid #bc965445; border-radius: 50%; top: 25px; left: 75px; }
+.morning-title-orbit::after { content: ""; display: block; position: absolute; inset: 15px; border-radius: 50%; border: 1px solid #bc965422; }
+.morning-seal { position: absolute; right: -23px; top: 75px; writing-mode: vertical-rl; padding: 8px 5px; border: 1px solid #b96647; color: #b96647; font-family: "KaiTi", serif; font-size: 11px; letter-spacing: .3em; border-radius: 3px; transform: rotate(6deg); }
+.welcome-tagline { font-family: "Songti SC", "SimSun", serif; font-size: 26px; line-height: 1.75; letter-spacing: .13em; margin: 20px 0 12px 5px; }
+.welcome-description { font-size: 13px; line-height: 2; color: #7c857a; letter-spacing: .06em; margin-left: 5px; }
+.welcome-horizon { display: flex; align-items: center; gap: 16px; color: #b49869; margin-top: 25px; }
+.welcome-horizon span { color: #8f917c; font-size: 11px; letter-spacing: .2em; }
+.identity-card { position: relative; padding: 36px 38px 25px; margin-top: 22px; border: 1px solid #e5e4d8; border-radius: 4px 28px 4px 4px; background: #ffffffba; box-shadow: 0 18px 70px #38513a09; backdrop-filter: blur(10px); }
+.identity-card::before { content: ""; width: 43px; height: 3px; background: #bd9d67; position: absolute; left: 38px; top: -2px; }
+.identity-card__topline { display: flex; justify-content: space-between; color: #a39173; font-size: 10px; letter-spacing: .2em; margin-bottom: 22px; }
+.identity-card h2 { font-family: "Songti SC", "SimSun", serif; font-weight: 500; font-size: 23px; line-height: 1.6; letter-spacing: .025em; margin: 0; }
+.identity-card form { margin-top: 28px; }
+.identity-field { display: block; margin-bottom: 23px; }
+.identity-field > span { display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 9px; }
+.identity-field small { font-size: 8px; letter-spacing: .12em; color: #9b9f93; }
+.identity-field input { width: 100%; padding: 12px 2px; border: 0; border-bottom: 1px solid #d9ded2; border-radius: 0; background: transparent; font-size: 16px; transition: border-color .2s, box-shadow .2s; outline: none; color: #213f35; }
+.identity-field input::placeholder { color: #a2a99e; font-size: 14px; }
+.identity-field input:focus { border-bottom-color: #48745e; box-shadow: 0 1px 0 #48745e; }
+.identity-field input[aria-invalid="true"] { border-bottom-color: #b7684c; }
+.identity-input-wrap { position: relative; }
+.identity-input-wrap input { padding-right: 25px; font-variant-numeric: tabular-nums; letter-spacing: .05em; }
+.identity-valid { position: absolute; right: 2px; top: 15px; color: #4e8065; }
+.identity-error { color: #a7533e; }
+.identity-error { font-size: 12px; line-height: 1.8; margin: 7px 0; }
+.entry-action { min-height: 74px; display: flex; align-items: center; margin-top: 20px; }
+.entry-action__hint { display: flex; justify-content: space-between; align-items: center; width: 100%; font-size: 12px; color: #929a8a; padding: 16px 0; }
+.entry-action--ready { animation: morningRise .45s both; }
+.journey-button { display: inline-flex; width: 100%; align-items: center; justify-content: space-between; gap: 24px; border: 1px solid transparent; border-radius: 3px; background: #244b3d; color: #f8f5eb; padding: 16px 21px; font-size: 14px; letter-spacing: .08em; text-decoration: none; cursor: pointer; transition: background .2s, transform .2s; }
+.journey-button:hover { background: #173f30; transform: translateY(-2px); }
+.journey-button svg { flex-shrink: 0; transition: transform .2s; }
+.journey-button:hover svg { transform: translateX(4px); }
+.welcome-page :focus-visible, .inspiration-page :focus-visible, .checkin-page :focus-visible { outline: 2px solid #b68d51; outline-offset: 5px; }
+.identity-card__foot { display: flex; align-items: center; gap: 7px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #e9eade; font-size: 10px; line-height: 1.8; color: #a1a591; }
+.tiny-sun { width: 6px; height: 6px; display: inline-block; border-radius: 50%; background: #c6a064; box-shadow: 0 0 0 3px #c6a0641a; flex-shrink: 0; }
+.welcome-footer, .inspiration-footer { display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.welcome-footer > span { color: #9d9e8f; font-size: 10px; letter-spacing: .08em; }
+.journey-steps { list-style: none; display: flex; gap: 24px; align-items: center; margin: 0; padding: 0; color: #a8ad9f; font-size: 10px; letter-spacing: .07em; }
+.journey-steps li { display: flex; align-items: center; gap: 9px; position: relative; padding-block: 10px; white-space: nowrap; }
+.journey-steps .is-current { color: #355442; }
+.journey-steps .is-complete { color: #71866f; }
+.journey-steps .is-current::after { content: ""; height: 1px; background: #a38d5c; position: absolute; bottom: 1px; left: 0; right: 0; }
+.journey-steps__number { font-family: Georgia, serif; font-style: italic; font-size: 13px; }
+
+.inspiration-page { position: relative; isolation: isolate; min-height: 100svh; display: flex; flex-direction: column; padding: 35px clamp(24px, 7vw, 110px) 26px; background: #172e28; color: #faf8ed; overflow: hidden; }
+.inspiration-scenery { position: absolute; z-index: -4; inset: 0; background-image: var(--quote-background); background-size: cover; background-position: center; opacity: .52; animation: sceneryIn 2.6s ease-out both; }
+.inspiration-portrait { position: absolute; z-index: -3; right: 0; top: 0; height: 100%; width: 48%; object-fit: cover; object-position: 50% 25%; filter: grayscale(1) sepia(.25) contrast(.9); opacity: .53; mix-blend-mode: luminosity; mask-image: linear-gradient(to right, transparent, #000 35%), linear-gradient(to top, transparent, #000 35%); mask-composite: intersect; }
+.inspiration-shade { position: absolute; z-index: -2; inset: 0; background: linear-gradient(90deg,#132c25ec 0%,#18352ac7 40%,#18352a15 100%), linear-gradient(0deg,#10291fe6,transparent 48%,#122e2466); }
+.inspiration-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.inspiration-back { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; font-size: 15px; letter-spacing: .15em; color: #eeeedc; }
+.inspiration-back:hover { color: #d8ba80; }
+.inspiration-header time { color: #dedfcb; font-size: 11px; letter-spacing: .08em; }
+.inspiration-content { flex: 1; width: 100%; max-width: 1280px; padding-block: clamp(45px, 8vh, 92px) 50px; margin: auto; }
+.inspiration-content > .eyebrow { color: #c7b78b; margin-bottom: 20px; font-size: 9px; }
+.inspiration-kicker { font-size: 13px; font-weight: 400; letter-spacing: .15em; color: #e0dfcb; display: flex; align-items: center; gap: 25px; }
+.inspiration-kicker > span { font-size: 10px; letter-spacing: .06em; color: #aebba7; border-left: 1px solid #aebba74d; padding-left: 25px; }
+.quote-writing { margin: 16px 0 34px; position: relative; max-width: 830px; min-height: 240px; }
+.quote-open { font-family: Georgia,serif; font-size: 95px; height: 70px; display: block; margin-left: -5px; color: #cebd8c; opacity: .85; }
+.daily-quote { font-family: "KaiTi", "STKaiti", "Songti SC", "SimSun", serif; font-size: clamp(29px, 3.6vw, 49px); font-weight: 400; line-height: 1.9; letter-spacing: .09em; margin: 0; text-shadow: 0 3px 22px #0003; overflow-wrap: anywhere; }
+.daily-quote--kai { font-family: "Morning Quote Kai", "KaiTi", serif; }
+.daily-quote--xingkai { font-family: "Morning Quote Xingkai", "STXingkai", serif; }
+.daily-quote--li { font-family: "Morning Quote Li", "STLiti", serif; }
+.daily-quote--serif { font-family: "Morning Quote Serif", Georgia, serif; }
+.daily-quote--hand { font-family: "Morning Quote Hand", cursive; }
+.daily-quote--slab { font-family: "Morning Quote Slab", Georgia, serif; }
+.daily-quote:lang(en) { font-size: clamp(28px, 3.2vw, 44px); letter-spacing: .01em; line-height: 1.65; overflow-wrap: normal; text-wrap: pretty; }
+.daily-quote--hand:lang(en) { font-size: clamp(30px, 3.5vw, 49px); line-height: 1.55; }
+.quote-word { display: inline-block; white-space: nowrap; }
+.quote-letter { display: inline-block; opacity: 0; animation: inkWrite .5s ease-out var(--letter-delay) forwards; }
+.quote-close { display: block; font-family: Georgia, serif; font-size: 88px; line-height: 1; height: 48px; text-align: right; color: #cebd8c; margin-top: 8px; opacity: 0; animation: morningRise .6s ease var(--author-delay) forwards; }
+.quote-pen { display: inline-block; margin-left: 5px; height: .7em; width: 2px; background: #d7b979; animation: penBlink .65s step-end infinite, penDisappear .1s linear var(--writing-duration) forwards; }
+.quote-attribution { display: flex; align-items: flex-start; gap: 16px; margin-top: 8px; opacity: 0; animation: morningRise .75s ease var(--author-delay) forwards; }
+.quote-attribution__line { width: 28px; height: 1px; background: #cfb279; margin-top: 12px; }
+.quote-attribution p { margin: 0 0 6px; font-size: 15px; letter-spacing: .12em; }
+.quote-attribution a { font-size: 10px; color: #c9d1bd; text-decoration: none; letter-spacing: .04em; border-bottom: 1px solid #c9d1bd40; padding-bottom: 3px; }
+.quote-attribution a:hover { color: #e1c18c; }
+.inspiration-actions { display: flex; align-items: center; gap: 27px; flex-wrap: wrap; }
+.journey-button--cream { width: 310px; color: #304334; background: #eae7d4; padding: 16px 20px; }
+.journey-button--cream:hover { background: #fff9e8; }
+.quote-replay { display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; color: #bec9b2; font-size: 11px; cursor: pointer; padding: 12px 0; }
+.quote-replay:hover { color: #fff8dc; }
+.quote-original { margin-top: 20px; max-width: 600px; font-size: 11px; color: #d1d8c5; line-height: 1.8; }
+.quote-original summary { cursor: pointer; width: fit-content; color: #afbda4; }
+.quote-original p { margin: 12px 0 6px; }
+.quote-original small { color: #b2bea8; font-size: 10px; }
+.inspiration-footer { padding-top: 14px; border-top: 1px solid #c0cbb329; }
+.inspiration-footer > span { font-family: "KaiTi",serif; font-size: 14px; letter-spacing: .15em; color: #d2d6bd; }
+.journey-steps--light { color: #92a18a; }
+.journey-steps--light .is-current { color: #edead6; }
+.journey-steps--light .is-complete { color: #c6d0b7; }
+
+.checkin-page { min-height: 100svh; background: #f5f6ef; }
+.checkin-site-header { background: #eaece2; padding: 19px max(24px, calc((100vw - 1140px)/2)); display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid #dce2d2; }
+.university-brand--compact .school-brand-image { width: 190px; }
+.university-brand--compact .college-emblem, .university-brand--compact .college-emblem img { height: 40px; }
+.university-brand--compact .college-emblem { width: 40px; }
+.university-brand--compact .college-wordmark strong { font-size: 13px; }
+.university-brand--compact .college-wordmark > span { font-size: 6px; }
+.checkin-site-header > a { display: flex; align-items: center; gap: 7px; font-size: 11px; color: #687e66; text-decoration: none; white-space: nowrap; }
+.checkin-container { max-width: 1140px; margin: auto; padding: 34px 24px 20px; }
+.checkin-welcome { display: flex; align-items: flex-end; justify-content: space-between; gap: 30px; margin-bottom: 24px; }
+.checkin-welcome h1 { font-family: "Songti SC", "SimSun", serif; font-size: clamp(23px, 3vw, 33px); line-height: 1.6; font-weight: 500; letter-spacing: .07em; margin: 11px 0 7px; }
+.checkin-welcome p:not(.eyebrow) { color: #8a9482; font-size: 12px; margin: 0; }
+.checkin-identity { display: flex; justify-content: space-between; gap: 20px; align-items: center; margin-bottom: 18px; border: 1px solid #dfe5d7; padding: 13px 19px; background: #edf1e6; border-radius: 8px; }
+.checkin-identity > span { display: flex; align-items: center; gap: 14px; min-width: 0; flex-wrap: wrap; }
+.checkin-identity strong { font-size: 14px; font-weight: 500; overflow-wrap: anywhere; }
+.checkin-identity > span > span { font-size: 12px; color: #79876e; font-variant-numeric: tabular-nums; }
+.checkin-identity > a { display: flex; align-items: center; gap: 7px; font-size: 11px; white-space: nowrap; color: #7f8c75; text-decoration: none; }
+.checkin-form-shell { border: 1px solid #e1e6d9; border-radius: 13px; box-shadow: 0 10px 40px #3b51300a; overflow: hidden; }
+.checkin-form-shell > div:first-child { padding: 25px 28px; background: linear-gradient(115deg,#fff 50%,#f8f8ef); border-color: #e9ecdf; }
+.checkin-form-shell > div:first-child h1 { font-family: "Morning Calligraphy", "KaiTi",serif; font-size: 35px; font-weight: 400; color: #284b3b; }
+.checkin-form { padding: 27px 28px; }
+.checkin-form > section:first-of-type { background: #f7f8f2; border-color: #e3e8d9; padding: 20px; border-radius: 10px; }
+.checkin-form > section:first-of-type > div:first-of-type > div { border: 1px solid #e9edde; padding-block: 13px; }
+.checkin-form > section:first-of-type > div:first-of-type > div > div:last-child { color: #3d6246; font-family: Georgia,serif; font-size: 24px; font-weight: 400; }
+.checkin-project-grid .checkin-morning-bonus { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px 24px; flex-wrap: wrap; min-height: 0; padding: 12px 17px; border-style: dashed; border-color: #dbcda8; background: #fcf9ed; }
+.checkin-morning-bonus > span { margin-top: 0; }
+.checkin-project-grid > button { position: relative; min-height: 108px; padding: 20px 18px; border-radius: 10px; cursor: pointer; border-color: #e0e6d8; background: #fff; transition: border-color .2s, background .2s, transform .2s, box-shadow .2s; }
+.checkin-project-grid > button:hover:not(:disabled) { transform: translateY(-2px); border-color: #91ad8b; box-shadow: 0 6px 18px #2b4a2410; }
+.checkin-project-grid > button > span:first-child { font-size: 15px; color: #36513c; }
+.checkin-project-grid > button > span:nth-child(2) { margin-top: 8px; line-height: 1.7; font-size: 11px; }
+.checkin-project-grid > button.border-emerald-500 { background: #eef5e9; border-color: #698f62; box-shadow: inset 3px 0 #698f62; }
+.checkin-project-grid > button:disabled { cursor: default; }
+.checkin-form > div.space-y-4 > section { border: 1px solid #dfe7d6; border-radius: 10px; padding: 22px; background: #fdfefa; }
+.checkin-form > button[type="submit"] { margin-top: 26px; padding-block: 16px; border-radius: 7px; background: #2c503c; font-size: 14px; letter-spacing: .08em; }
+.checkin-form > button[type="submit"]:hover:not(:disabled) { background: #1d3f2e; }
+.checkin-footer { display: flex; justify-content: space-between; gap: 20px; margin-top: 26px; font-size: 10px; color: #939f86; letter-spacing: .1em; }
+.checkin-footer > span { letter-spacing: .02em; }
+
+@keyframes inkWrite { from { opacity: 0; clip-path: inset(0 100% 0 0); transform: translateY(3px); } to { opacity: 1; clip-path: inset(0); transform: translateY(0); } }
+@keyframes morningRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes sceneryIn { from { opacity: .25; transform: scale(1.035); } to { opacity: .52; transform: scale(1); } }
+@keyframes penBlink { 50% { opacity: 0; } }
+@keyframes penDisappear { to { opacity: 0; visibility: hidden; } }
+
+@media (min-width: 1400px) { .welcome-layout { padding-block: 60px; } }
+@media (max-width: 1000px) {
+  .welcome-layout { gap: 35px; padding-inline: 0; }
+  .identity-card { padding: 30px 25px 23px; }
+  .identity-card h2 { font-size: 21px; }
+  .identity-card::before { left: 25px; }
+  .morning-title { font-size: 120px; }
+  .morning-title > span { margin-left: 75px; }
+  .morning-seal { right: -12px; }
+  .checkin-welcome .journey-steps { gap: 15px; }
+}
+@media (max-width: 720px) {
+  .welcome-page { padding: 23px 22px 18px; }
+  .university-brand { gap: 14px; }
+  .welcome-header { min-height: 48px; }
+  .school-brand-image { width: 174px; }
+  .university-brand__divider { height: 28px; }
+  .college-emblem { height: 37px; width: 37px; }
+  .college-emblem img { height: 37px; }
+  .college-wordmark strong { font-size: 11px; letter-spacing: .02em; }
+  .college-wordmark > span { font-size: 5px; max-width: 150px; line-height: 1.4; }
+  .university-brand__college { gap: 6px; }
+  .welcome-layout { grid-template-columns: 1fr; gap: 15px; padding: 40px 0 32px; max-width: 450px; }
+  .welcome-intro { position: relative; padding-bottom: 10px; }
+  .welcome-intro > .eyebrow { font-size: 8px; letter-spacing: .16em; }
+  .morning-title-wrap { margin-block: 26px 17px; }
+  .morning-title { font-size: clamp(73px, 18.5vw, 100px); white-space: nowrap; }
+  .morning-title > span { display: inline-block; margin: 0 0 0 4px; transform: translateY(8px); }
+  .morning-title-orbit { width: 185px; height: 185px; top: -50px; left: 90px; }
+  .morning-seal { top: -25px; right: -2px; font-size: 8px; padding: 6px 3px; }
+  .welcome-tagline { font-size: 20px; margin-top: 24px; line-height: 1.7; }
+  .welcome-tagline br { display: none; }
+  .welcome-description { font-size: 11px; margin-top: 8px; }
+  .welcome-description br { display: none; }
+  .welcome-horizon { display: none; }
+  .identity-card { margin-top: 5px; }
+  .identity-card__topline { margin-bottom: 15px; }
+  .identity-card form { margin-top: 22px; }
+  .identity-field { margin-bottom: 18px; }
+  .identity-card h2 { font-size: 21px; }
+  .welcome-footer { flex-direction: column; gap: 15px; }
+  .journey-steps { gap: 20px; font-size: 9px; }
+  .journey-steps__number { font-size: 12px; }
+  .welcome-footer > span { font-size: 9px; }
+  .inspiration-page { padding: 25px 25px 18px; }
+  .inspiration-header time { font-size: 9px; }
+  .inspiration-back { font-size: 13px; gap: 10px; }
+  .inspiration-content { padding-block: 55px 38px; }
+  .inspiration-portrait { width: 78%; opacity: .3; top: 30px; height: 80%; object-position: 50% 15%; }
+  .inspiration-shade { background: linear-gradient(90deg,#132c25d9,#18352a55),linear-gradient(0deg,#10291ff0,transparent 65%); }
+  .inspiration-kicker { gap: 18px; }
+  .inspiration-kicker > span { padding-left: 18px; font-size: 9px; }
+  .quote-writing { min-height: 275px; margin-bottom: 30px; }
+  .quote-open { font-size: 80px; height: 62px; }
+  .daily-quote { font-size: clamp(26px, 6.8vw, 35px); line-height: 2; letter-spacing: .06em; }
+  .daily-quote:lang(en) { font-size: 27px; line-height: 1.65; letter-spacing: .005em; }
+  .daily-quote--hand:lang(en) { font-size: 30px; line-height: 1.6; }
+  .quote-close { font-size: 72px; height: 41px; margin-top: 12px; }
+  .quote-attribution p { font-size: 13px; }
+  .inspiration-actions { gap: 12px 23px; }
+  .journey-button--cream { width: min(310px, 100%); font-size: 12px; }
+  .inspiration-footer { flex-direction: column; align-items: flex-start; gap: 13px; }
+  .inspiration-footer > span { font-size: 11px; align-self: flex-end; }
+  .checkin-site-header { padding: 16px 20px; }
+  .checkin-site-header .university-brand { gap: 0; }
+  .checkin-site-header .university-brand__college, .checkin-site-header .university-brand__divider { display: none; }
+  .checkin-container { padding: 27px 16px 20px; }
+  .checkin-welcome { flex-direction: column; align-items: flex-start; gap: 14px; margin-bottom: 18px; }
+  .checkin-welcome h1 { font-size: 25px; letter-spacing: .035em; }
+  .checkin-welcome .eyebrow { font-size: 8px; }
+  .checkin-welcome p:not(.eyebrow) { font-size: 11px; }
+  .checkin-identity { padding: 12px 13px; }
+  .checkin-identity > span { gap: 8px 10px; }
+  .checkin-identity > span > span { font-size: 11px; }
+  .checkin-identity strong { font-size: 13px; }
+  .checkin-form-shell > div:first-child { padding: 22px 18px; }
+  .checkin-form { padding: 23px 17px; }
+  .checkin-form > section:first-of-type { padding: 15px; }
+  .checkin-form > section:first-of-type > div:first-of-type > div { padding: 10px; }
+  .checkin-project-grid > button { min-height: 113px; padding: 17px 13px; }
+  .checkin-project-grid .checkin-morning-bonus { padding: 13px; gap: 7px 14px; }
+  .checkin-morning-bonus > span:first-child { width: 100%; }
+  .checkin-form > div.space-y-4 > section { padding: 18px 14px; }
+  .checkin-footer { flex-direction: column; align-items: center; gap: 9px; font-size: 9px; }
+}
+@media (max-width: 390px) {
+  .welcome-page { padding-inline: 18px; }
+  .school-brand-image { width: 148px; }
+  .university-brand { gap: 9px; }
+  .college-emblem, .college-emblem img { height: 31px; }
+  .college-emblem { width: 31px; }
+  .college-wordmark strong { font-size: 10px; }
+  .college-wordmark > span { font-size: 4px; }
+  .identity-card { padding-inline: 21px; }
+  .identity-card h2 { font-size: 19px; }
+  .journey-steps { gap: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-page *, .inspiration-page *, .checkin-page * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .quote-letter, .quote-attribution, .quote-close { opacity: 1; clip-path: none; transform: none; }
+  .quote-pen { display: none; }
+  .inspiration-scenery { opacity: .52; }
+}
