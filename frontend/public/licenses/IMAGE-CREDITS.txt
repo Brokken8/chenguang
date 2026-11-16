@@ -1,0 +1,145 @@
+IMAGE CREDITS
+
+Background photographs: Unsplash. https://unsplash.com/license
+
+Portraits: Wikimedia Commons. Attribution and licenses follow.
+
+file: portraits/confucius.jpg
+artist: Anonymous Chinese painter of the Western Han period
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AConfucius%2C%20fresco%20from%20a%20Western%20Han%20tomb%20of%20Dongping%20County%2C%20Shandong%20province%2C%20China%20(cropped).jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/mencius.jpg
+artist: anonymous
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AHalf%20Portraits%20of%20the%20Great%20Sage%20and%20Virtuous%20Men%20of%20Old%20-%20Meng%20Ke%20(%E5%AD%9F%E8%BB%BB).jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/sushi.jpg
+artist: Zhao Mengfu
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3ASu%20shi.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/hanyu.jpg
+artist: AnonymousUnknown author
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3A%E8%87%B3%E8%81%96%E5%85%88%E8%B3%A2%E5%8D%8A%E8%BA%AB%E5%83%8F%20%E5%86%8A-110-%E9%9F%93%E6%84%88.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/wangyangming.jpg
+artist: Shen Junhui (沈俊繪)
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3A%E7%8E%8B%E5%AE%88%E4%BB%81.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/luyou.jpg
+artist: UnknownUnknown ,清人 繪
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3A%E9%99%B8%E6%B8%B8%20%E8%82%96%E5%83%8F.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/zhengxie.png
+artist: 葉衍蘭
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AZheng%20Xie.png
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/zengguofan.jpg
+artist: Unknown authorUnknown author
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3ATseng%20Kwo-Fan.tif
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/liuyuxi.jpg
+artist: Gisling
+license: CC BY-SA 3.0
+licenseUrl: https://creativecommons.org/licenses/by-sa/3.0
+source: https://commons.wikimedia.org/wiki/File%3A%E5%88%98%E7%A6%B9%E9%94%A1%E5%83%8F.JPG
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/zhuxi.jpg
+artist: 向史公哲曰
+license: CC BY-SA 4.0
+licenseUrl: https://creativecommons.org/licenses/by-sa/4.0
+source: https://commons.wikimedia.org/wiki/File%3A%E5%94%AF%E4%B8%80%E5%8F%AF%E9%9D%A0%E7%9A%84%E6%9C%B1%E7%86%B9%E7%94%BB%E5%83%8F.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/libai.jpg
+artist: Liang Kai
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3ALiBai.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/luxun.jpg
+artist: Unknown authorUnknown author
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3ALuXun1930.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/hualuogeng.jpg
+artist: 牛畏予
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AHua%20Luogeng%201956.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/taoyuanming.jpg
+artist: Chen Hongshou
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3ACh'en%20Hung-shou%20002.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/yanzhenqing.jpg
+artist: Unknown authorUnknown author
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3A%E9%A2%9C%E9%B2%81%E5%85%AC.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/james.jpg
+artist: Notman Studios (photographer)
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AWilliam%20James%20b1842c.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/franklin.jpg
+artist: Joseph-Siffred Duplessis
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AJoseph%20Siffrein%20Duplessis%20-%20Benjamin%20Franklin%20-%20Google%20Art%20Project.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/marcus.jpg
+artist: Daniel Martin
+license: CC BY-SA 4.0
+licenseUrl: https://creativecommons.org/licenses/by-sa/4.0
+source: https://commons.wikimedia.org/wiki/File%3AMSR-ra-61-b-1-DM.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/seneca.jpg
+artist: Calidius
+license: CC BY-SA 3.0
+licenseUrl: http://creativecommons.org/licenses/by-sa/3.0/
+source: https://commons.wikimedia.org/wiki/File%3ADuble%20herma%20of%20Socrates%20and%20Seneca%20Antikensammlung%20Berlin%2007.jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
+
+file: portraits/keller.jpg
+artist: Unknown authorUnknown author
+license: Public domain
+licenseUrl: https://commons.wikimedia.org/wiki/Commons:Public_domain
+source: https://commons.wikimedia.org/wiki/File%3AHelen%20Keller%20(circa%201904).jpg
+changes: 原图未修改；页面以 CSS 灰度、透明度和遮罩呈现。
