@@ -56,7 +56,7 @@ const ITEM_META: Array<{
   { type: "writing", label: "英语作文", target: "不少于 100 词" },
   { type: "vocabulary", label: "背单词", target: "App 新学 20 个以上单词" },
   { type: "speaking", label: "口语", target: "不少于 10 min 或不少于 15 句对话" },
-  { type: "running", label: "跑步", target: "2 公里及以上，配速 <= 10 min/km" },
+  { type: "running", label: "跑步", target: "1.2 公里及以上，配速 <= 10 min/km" },
 ];
 
 const MAKEUP_CHECKIN_DATE = "2026-05-15";
@@ -910,7 +910,7 @@ function RulesModal({
         <li>同一项目提交后不能取消，可以修改完成量，也可以继续追加新的截图。</li>
         <li>听力不少于 10 小题；阅读为 2 道阅读且不少于 10 小题；作文不少于 100 词。</li>
         <li>背单词需 App 新学 20 个以上；口语不少于 10 min 或不少于 15 句对话。</li>
-        <li>跑步需 2 公里及以上，配速不慢于 10 min/km。</li>
+        <li>跑步需 1.2 公里及以上，配速不慢于 10 min/km。</li>
       </ul>
     </Modal>
   );
