@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
-  CalendarCheck,
   CheckCircle,
   Eye,
   Image,
@@ -907,6 +906,7 @@ function RulesModal({
         <li>未达到打卡指标的项目可以保存提交记录，但不会有效加分。</li>
         <li>当天 {bonusWindow} 内首次有效打卡可额外获得 1 分早起加分。</li>
         <li>每日最高 7 分，其中基础项目最高 6 分，早起加分最高 1 分。</li>
+        <li>活动排名先按累计有效打卡天数从多到少排列；天数相同时，再按累计积分从高到低排列。当天至少一个项目达标才计为 1 个有效打卡日，同一天多次提交只计 1 天。</li>
         <li>同一项目提交后不能取消，可以修改完成量，也可以继续追加新的截图。</li>
         <li>听力不少于 10 小题；阅读为 2 道阅读且不少于 10 小题；作文不少于 100 词。</li>
         <li>背单词需 App 新学 20 个以上；口语不少于 10 min 或不少于 15 句对话。</li>
@@ -917,31 +917,17 @@ function RulesModal({
 }
 
 function RankingsModal({ rankings, onClose }: { rankings: PublicRanking[]; onClose: () => void }) {
-  const scoreRows = rankings.slice(0, 10);
-  const dayRows = [...rankings]
-    .sort(
-      (a, b) =>
-        b.valid_days - a.valid_days ||
-        b.consecutive_days - a.consecutive_days ||
-        b.total_points - a.total_points ||
-        a.name.localeCompare(b.name, "zh-CN")
-    )
-    .slice(0, 10);
+  const rankingRows = rankings.slice(0, 10);
 
   return (
     <Modal title="排行榜" onClose={onClose} wide>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="space-y-4">
+        <p className="text-sm text-gray-600">先按累计有效打卡天数排名，天数相同时按累计积分排名。</p>
         <RankingPanel
-          title="打卡分数排行榜"
+          title="活动总排行榜"
           icon={<Trophy size={18} />}
-          rows={scoreRows}
-          primary={(row) => `${row.total_points} 分`}
-        />
-        <RankingPanel
-          title="累计天数排行榜"
-          icon={<CalendarCheck size={18} />}
-          rows={dayRows}
-          primary={(row) => `${row.valid_days} 天`}
+          rows={rankingRows}
+          primary={(row) => `${row.valid_days} 天 · ${row.total_points} 分`}
         />
       </div>
     </Modal>

@@ -25,7 +25,7 @@ from app.services.activity import (
     MORNING_BONUS_POINTS,
     should_earn_morning_bonus,
 )
-from app.services.rankings import build_ranking_rows, public_ranking_payload
+from app.services.rankings import build_ranking_rows, public_ranking_payload, ranking_sort_key
 from app.schemas import (
     ActivitySettingsOut,
     PublicDailyCheckinOut,
@@ -110,15 +110,7 @@ async def get_public_rankings(db: AsyncSession = Depends(get_db)):
         .options(selectinload(DailyCheckin.items))
     )
     rows = build_ranking_rows(result.scalars().all())
-    rows.sort(
-        key=lambda row: (
-            -row["total_points"],
-            -row["base_points"],
-            -row["total_volume"],
-            -row["consecutive_days"],
-            row["name"],
-        )
-    )
+    rows.sort(key=ranking_sort_key)
     return [PublicRankingOut(**public_ranking_payload(row)) for row in rows]
 
 

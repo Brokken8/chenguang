@@ -4,6 +4,10 @@ from typing import Any
 from app.models import DailyCheckin
 
 
+def ranking_sort_key(row: dict[str, Any]) -> tuple[int, int, str]:
+    return (-row["valid_days"], -row["total_points"], row["student_id"])
+
+
 def build_ranking_rows(checkins: list[DailyCheckin]) -> list[dict[str, Any]]:
     grouped: dict[str, dict[str, Any]] = {}
     valid_dates_by_student: dict[str, set[date]] = {}

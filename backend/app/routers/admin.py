@@ -28,7 +28,7 @@ from app.services.activity import (
     should_earn_morning_bonus,
 )
 from app.services.auth import verify_password
-from app.services.rankings import build_ranking_rows
+from app.services.rankings import build_ranking_rows, ranking_sort_key
 from app.services.session import (
     COOKIE_NAME,
     CSRF_COOKIE_NAME,
@@ -240,15 +240,7 @@ async def list_rankings(
     checkins = result.scalars().all()
 
     rows = build_ranking_rows(checkins)
-    rows.sort(
-        key=lambda row: (
-            -row["total_points"],
-            -row["base_points"],
-            -row["total_volume"],
-            -row["morning_bonus_count"],
-            row["student_id"],
-        )
-    )
+    rows.sort(key=ranking_sort_key)
 
     ranked_rows = []
     for index, row in enumerate(rows):
@@ -272,7 +264,7 @@ async def list_participants(
     )
     checkins = result.scalars().all()
     rows = build_ranking_rows(checkins)
-    rows.sort(key=lambda row: (-row["total_points"], -row["valid_days"], row["student_id"]))
+    rows.sort(key=ranking_sort_key)
     ranked = [
         RankingOut(rank=index + 1, **{**row, "total_volume": round(row["total_volume"], 4)})
         for index, row in enumerate(rows)
