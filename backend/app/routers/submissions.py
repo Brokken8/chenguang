@@ -504,11 +504,11 @@ def _evaluate_item(item_type: str, values: dict[str, Any]) -> dict[str, Any]:
     else:
         distance = _float_value(values, "running_distance_km")
         pace = _float_value(values, "running_pace_min_per_km")
-        is_valid = distance >= 2 and 0 < pace <= 10
+        is_valid = distance >= 1.2 and 0 < pace <= 10
         data.update(
             running_distance_km=distance,
             running_pace_min_per_km=pace,
-            volume_score=distance / 2 if is_valid else 0,
+            volume_score=distance / 1.2 if is_valid else 0,
         )
 
     data["is_valid"] = is_valid
