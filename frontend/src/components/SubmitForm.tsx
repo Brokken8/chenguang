@@ -1,3 +1,4 @@
+import { compressImage } from "../utils/compressImage";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -43,7 +44,7 @@ type ItemValues = {
   running_pace_min_per_km: string;
 };
 
-type CheckinTarget = "today" | "makeup";
+type CheckinTarget = "today" | "makeup" | "morning";
 
 const ITEM_META: Array<{
   type: CheckinItemType;
@@ -58,6 +59,7 @@ const ITEM_META: Array<{
   { type: "running", label: "跑步", target: "1.2 公里及以上，配速 <= 10 min/km" },
 ];
 
+const MORNING_MAKEUP_DATE = "2026-11-19";
 const MAKEUP_CHECKIN_DATE = "2026-05-15";
 const MAKEUP_WINDOW_START = "2026-05-16";
 const MAKEUP_WINDOW_END = "2026-05-17";
@@ -203,6 +205,10 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
     MAKEUP_WINDOW_START,
     MAKEUP_WINDOW_END
   );
+  const morningMakeupOpen = (() => {
+    const { date, hour } = chinaParts(new Date());
+    return date === MORNING_MAKEUP_DATE || (date === "2026-11-20" && hour < 4);
+  })();
   const successHasEffectivePoints = (success?.checkin.base_points ?? 0) > 0;
   const earnedMorningBonus = Boolean(
     todayCheckin?.earned_morning_bonus && (todayCheckin?.base_points ?? 0) > 0
@@ -235,14 +241,37 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
   }, []);
 
   const handleFileChange = useCallback(
-    (type: CheckinItemType, event: React.ChangeEvent<HTMLInputElement>) => {
+    async (type: CheckinItemType, event: React.ChangeEvent<HTMLInputElement>) => {
       if (!event.target.files) return;
-      const selectedFiles = Array.from(event.target.files);
+      const input = event.target;
+      const picked = Array.from(input.files ?? []);
+      // 先把文件完整读进内存再清空 input：手机浏览器里相册文件是“懒读取”的，
+      // 提交时才读可能读不到（表现为请求体为空，后端报“提交数据不完整”）
+      let snapshots: File[];
+      try {
+        snapshots = await Promise.all(
+          picked.map(async (f) => new File([await f.arrayBuffer()], f.name, { type: f.type, lastModified: f.lastModified }))
+        );
+      } catch {
+        input.value = "";
+        setError("读取所选文件失败，请重新选择图片（建议先把图片保存到手机相册或文件里再选）");
+        return;
+      }
+      input.value = "";
+      const compressed = await Promise.all(snapshots.map(compressImage));
+      const selectedFiles = compressed.map((f, i) => {
+        const ext = f.type === "image/png" ? "png" : f.type === "application/pdf" ? "pdf" : f.type === "image/webp" ? "webp" : f.type === "image/jpeg" ? "jpg" : (f.name.split(".").pop() || "bin").toLowerCase().replace(/[^a-z0-9]/g, "").slice(0, 5) || "bin";
+        return new File([f], `${type}_${Date.now()}_${i}.${ext}`, { type: f.type, lastModified: f.lastModified });
+      });
+      const tooBig = selectedFiles.find((f) => f.size > 14 * 1024 * 1024);
+      if (tooBig) {
+        setError(`${tooBig.name} 太大（${(tooBig.size / 1024 / 1024).toFixed(1)} MB），请压缩或换一张后再上传`);
+        return;
+      }
       setFiles((prev) => ({
         ...prev,
         [type]: [...prev[type], ...selectedFiles],
       }));
-      event.target.value = "";
       setError("");
     },
     []
@@ -296,8 +325,15 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
       for (const meta of activeItemMeta) {
         const item = items[meta.type];
         if (!item.selected) continue;
-        if (!lockedItemTypes.includes(meta.type) && files[meta.type].length === 0) {
-          setError(`请为${meta.label}上传对应截图`);
+        if (
+          (checkinTarget === "morning" || !lockedItemTypes.includes(meta.type)) &&
+          files[meta.type].length === 0
+        ) {
+          setError(
+            checkinTarget === "morning"
+              ? `补早起需为${meta.label}上传含 6:00-8:00 时间显示的证明截图`
+              : `请为${meta.label}上传对应截图`
+          );
           return;
         }
         payload[meta.type] = buildItemPayload(meta.type, item);
@@ -309,6 +345,9 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
       formData.append("items_payload", JSON.stringify(payload));
       if (checkinTarget === "makeup") {
         formData.append("checkin_date", MAKEUP_CHECKIN_DATE);
+      }
+      if (checkinTarget === "morning") {
+        formData.append("morning_makeup", "true");
       }
 
       for (const meta of activeItemMeta) {
@@ -434,6 +473,19 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
             >
               今日打卡
             </button>
+            {morningMakeupOpen && (
+              <button
+                type="button"
+                onClick={() => setCheckinTarget("morning")}
+                className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                  checkinTarget === "morning"
+                    ? "border-amber-500 bg-amber-50 text-amber-900"
+                    : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
+                }`}
+              >
+                补早起（11-19 上午 6:00-8:00）
+              </button>
+            )}
             {makeupWindowOpen && (
               <button
                 type="button"
@@ -448,6 +500,11 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
               </button>
             )}
           </div>
+          {checkinTarget === "morning" && (
+            <p className="mt-2 text-xs leading-5 text-amber-700">
+              仅用于补交 11-19 上午 6:00-8:00 因系统故障未能提交的打卡，通过后可获得早起加分。每个已选项目都必须上传含该时段时间显示的证明截图（如运动 App、学习 App 的完成记录，需能看到时间），材料将人工核查。
+            </p>
+          )}
           {checkinTarget === "makeup" && (
             <p className="mt-2 text-xs leading-5 text-amber-700">
               2026-05-15 补打卡入口仅在 2026-05-16 至 2026-05-17 开放。
@@ -523,7 +580,7 @@ export default function SubmitForm({ identity }: { identity: CheckinIdentity }) 
           className="flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 py-3 text-base font-medium text-white transition hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Send size={18} />
-          {loading ? "提交中..." : checkinTarget === "makeup" ? "保存补打卡" : "保存今日打卡"}
+          {loading ? "提交中..." : checkinTarget === "makeup" ? "保存补打卡" : checkinTarget === "morning" ? "提交补早起" : "保存今日打卡"}
         </button>
       </form>
 
@@ -639,11 +696,22 @@ function valueToString(value: number | null) {
   return value === null ? "" : String(value);
 }
 
+function chinaParts(value: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(value);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? "";
+  return { date: `${get("year")}-${get("month")}-${get("day")}`, hour: Number(get("hour")) };
+}
+
+// 按北京时间判断日期，避免设备时区不同导致入口显示错误
 function formatLocalDate(value: Date) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return chinaParts(value).date;
 }
 
 function isDateInRange(value: string, start: string, end: string) {
@@ -651,7 +719,7 @@ function isDateInRange(value: string, start: string, end: string) {
 }
 
 function filterItemsForTarget(items: CheckinItem[], target: CheckinTarget) {
-  if (target === "today") return items;
+  if (target !== "makeup") return items;
   return items.filter((item) => MAKEUP_ITEM_TYPES.includes(item.item_type));
 }
 

@@ -3,6 +3,7 @@ import time
 
 from fastapi import FastAPI
 from fastapi import Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -28,9 +29,11 @@ allowed_origins = {
 app.add_middleware(
     CORSMiddleware,
     allow_origins=list(allowed_origins),
+    allow_origin_regex=r"https://[a-z0-9-]+\.sealoshzh\.site",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Page-Count"],
 )
 
 
@@ -71,6 +74,25 @@ async def log_requests(request: Request, call_next):
         elapsed_ms,
     )
     return response
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = exc.errors()
+    logger.warning(
+        "request_validation_failed method=%s path=%s content_type=%s content_length=%s ua=%s errors=%s",
+        request.method,
+        request.url.path,
+        request.headers.get("content-type", "-")[:60],
+        request.headers.get("content-length", "-"),
+        request.headers.get("user-agent", "-")[:160],
+        [(".".join(str(x) for x in e.get("loc", ())), e.get("type")) for e in errors],
+    )
+    fields = "、".join(sorted({str(e["loc"][-1]) for e in errors if e.get("loc")})) or "未知字段"
+    return JSONResponse(
+        status_code=422,
+        content={"detail": f"提交数据不完整（{fields}），可能是图片上传中断或文件异常，请重新选择图片后再试"},
+    )
 
 
 @app.exception_handler(Exception)

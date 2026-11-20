@@ -94,6 +94,34 @@ def should_earn_morning_bonus(
 
 def ensure_activity_settings_columns(connection: Connection) -> None:
     if connection.dialect.name == "sqlite":
+        dc_cols = {row[1] for row in connection.exec_driver_sql("PRAGMA table_info(daily_checkins)").fetchall()}
+        if "makeup_bonus" not in dc_cols:
+            connection.exec_driver_sql(
+                "ALTER TABLE daily_checkins ADD COLUMN makeup_bonus BOOLEAN NOT NULL DEFAULT 0"
+            )
+        if "makeup_status" not in dc_cols:
+            connection.exec_driver_sql(
+                "ALTER TABLE daily_checkins ADD COLUMN makeup_status VARCHAR(20) NOT NULL DEFAULT 'none'"
+            )
+            connection.exec_driver_sql(
+                "UPDATE daily_checkins SET makeup_status = CASE WHEN makeup_revoked THEN 'rejected' ELSE 'pending' END "
+                "WHERE makeup_bonus = 1"
+            )
+        if "makeup_revoked" not in dc_cols:
+            connection.exec_driver_sql(
+                "ALTER TABLE daily_checkins ADD COLUMN makeup_revoked BOOLEAN NOT NULL DEFAULT 0"
+            )
+    elif connection.dialect.name == "postgresql":
+        connection.exec_driver_sql(
+            "ALTER TABLE daily_checkins ADD COLUMN IF NOT EXISTS makeup_bonus BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        connection.exec_driver_sql(
+            "ALTER TABLE daily_checkins ADD COLUMN IF NOT EXISTS makeup_revoked BOOLEAN NOT NULL DEFAULT FALSE"
+        )
+        connection.exec_driver_sql(
+            "ALTER TABLE daily_checkins ADD COLUMN IF NOT EXISTS makeup_status VARCHAR(20) NOT NULL DEFAULT 'none'"
+        )
+    if connection.dialect.name == "sqlite":
         rows = connection.exec_driver_sql("PRAGMA table_info(activity_settings)").fetchall()
         columns = {row[1] for row in rows}
         if "checkin_start_time" not in columns:

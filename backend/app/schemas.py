@@ -72,6 +72,9 @@ class DailyCheckinOut(BaseModel):
     first_submitted_at: datetime
     first_valid_at: Optional[datetime] = None
     earned_morning_bonus: bool
+    makeup_bonus: bool = False
+    makeup_revoked: bool = False
+    makeup_status: str = "none"
     base_points: int
     total_points: int
     total_volume: float

@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     frontend_url: str = "http://localhost:5173"
 
-    upload_max_file_size_mb: int = 8
+    upload_max_file_size_mb: int = 15
     upload_max_files_per_submission: int = 10
 
     @property

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -6,7 +7,8 @@ from datetime import date, datetime, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, UploadFile, File, Form, Request, Depends, HTTPException, Query, status
+from fastapi import BackgroundTasks, APIRouter, UploadFile, File, Form, Request, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
@@ -15,7 +17,9 @@ from app.config import settings
 from app.database import get_db
 from app.models import CheckinAttachment, CheckinItem, DailyCheckin
 from app.services.oss import get_oss_client
+from app.services.ai_review import run_ai_review
 from app.services.activity import (
+    to_china_datetime,
     build_activity_response,
     checkin_window_label,
     get_checkin_date_at,
@@ -42,6 +46,8 @@ MAKEUP_CHECKIN_DATE = date(2026, 5, 15)
 MAKEUP_WINDOW_START = date(2026, 5, 16)
 MAKEUP_WINDOW_END = date(2026, 5, 17)
 MAX_BASE_POINTS = 6
+MORNING_MAKEUP_DATE = date(2026, 11, 19)
+MORNING_MAKEUP_CLAIM_AT = datetime(2026, 11, 19, 7, 59, tzinfo=CHINA_TZ)
 
 ITEM_LABELS = {
     "listening": "听力",
@@ -173,10 +179,12 @@ async def download_my_attachment(
 @router.post("/api/submissions", response_model=PublicSubmissionResult, status_code=status.HTTP_201_CREATED)
 async def create_submission(
     request: Request,
+    background_tasks: BackgroundTasks,
     name: str = Form(...),
     student_id: str = Form(...),
     items_payload: str = Form(...),
     checkin_date: date | None = Form(None),
+    morning_makeup: bool = Form(False),
     attachment_item_types: list[str] | None = Form(None),
     attachments: list[UploadFile] | None = File(None),
     db: AsyncSession = Depends(get_db),
@@ -201,6 +209,9 @@ async def create_submission(
             detail=f"当前不在打卡有效时间内，本活动有效时间为 {checkin_window_label(activity)}",
         )
     target_date = _resolve_checkin_date(activity, now, checkin_date)
+    if morning_makeup:
+        if is_makeup_submission or target_date != MORNING_MAKEUP_DATE:
+            raise HTTPException(status_code=400, detail="补早起入口仅限 2026-11-19 当天打卡使用，现已关闭")
     if is_makeup_submission:
         _validate_makeup_submission(item_inputs, attachment_item_types or [])
 
@@ -225,6 +236,13 @@ async def create_submission(
     else:
         checkin.name = name.strip()
         checkin.ip_address = request.client.host if request.client else checkin.ip_address
+    was_rejected = False
+    if morning_makeup:
+        # 被拒绝后允许再次提交新的证明：重新进入“等待 AI”，全部证明会被重新审一遍；
+        # 重新提交期间先不给早起分，等审核通过后才恢复
+        was_rejected = checkin.makeup_status == "rejected"
+        checkin.makeup_bonus = True
+        checkin.makeup_status = "pending"
 
     existing_items_result = await db.execute(
         select(CheckinItem)
@@ -242,7 +260,7 @@ async def create_submission(
         item_inputs,
         attachment_item_types or [],
         attachments or [],
-        required_item_types=set(item_inputs) - existing_item_types,
+        required_item_types=set(item_inputs) if morning_makeup else set(item_inputs) - existing_item_types,
     )
     for item_type, raw_values in item_inputs.items():
         item = item_by_type.get(item_type)
@@ -281,6 +299,13 @@ async def create_submission(
             min(base_points, MAX_BASE_POINTS),
         )
 
+    if morning_makeup and base_points > 0 and not was_rejected:
+        first_valid = checkin.first_valid_at
+        if first_valid is None or to_china_datetime(first_valid) > MORNING_MAKEUP_CLAIM_AT:
+            checkin.first_valid_at = MORNING_MAKEUP_CLAIM_AT
+        checkin.earned_morning_bonus = True
+        logger.info("morning_makeup_claimed student_id=%s checkin_id=%s", student_id.strip(), checkin.id)
+
     checkin.base_points = min(base_points, MAX_BASE_POINTS)
     checkin.total_volume = total_volume
     bonus_points = MORNING_BONUS_POINTS if checkin.earned_morning_bonus and checkin.base_points > 0 else 0
@@ -288,6 +313,8 @@ async def create_submission(
     checkin.updated_at = now
 
     await db.commit()
+    if morning_makeup and base_points > 0:
+        background_tasks.add_task(run_ai_review, checkin.id)
     saved = await _load_checkin(db, checkin.id)
     logger.info(
         "checkin_submit_success checkin_id=%s student_id=%s base_points=%s total_points=%s",
@@ -300,6 +327,68 @@ async def create_submission(
         "checkin": _build_public_checkin(saved),
         "message": "打卡已保存",
     }
+
+
+class ClientDiag(BaseModel):
+    info: dict
+
+
+@router.post("/api/diag")
+async def client_diag(payload: ClientDiag, request: Request):
+    """前端提交失败时上报文件大小/类型等信息（不含文件内容），用于排查个别手机浏览器的问题。"""
+    text = json.dumps(payload.info, ensure_ascii=False)[:2000]
+    logger.warning(
+        "client_diag ua=%s info=%s", request.headers.get("user-agent", "-")[:120], text
+    )
+    return {"ok": True}
+
+
+class JsonAttachment(BaseModel):
+    filename: str
+    data: str  # base64
+
+
+class JsonSubmission(BaseModel):
+    name: str
+    student_id: str
+    items_payload: str
+    checkin_date: date | None = None
+    morning_makeup: bool = False
+    attachment_item_types: list[str] = []
+    attachments: list[JsonAttachment] = []
+
+
+@router.post("/api/submissions/json", response_model=PublicSubmissionResult, status_code=status.HTTP_201_CREATED)
+async def create_submission_json(
+    payload: JsonSubmission,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    """兜底入口：部分手机内置浏览器（如 iPhone 的 QQ）会把 multipart 请求体丢成空，
+    前端检测到后改用 JSON+base64 重试，业务逻辑与 /api/submissions 完全一致。"""
+    import base64
+    import io
+
+    files: list[UploadFile] = []
+    for att in payload.attachments:
+        try:
+            raw = base64.b64decode(att.data, validate=False)
+        except Exception:
+            raise HTTPException(status_code=400, detail="附件数据格式错误")
+        files.append(UploadFile(file=io.BytesIO(raw), filename=att.filename))
+    return await create_submission(
+        request=request,
+        background_tasks=background_tasks,
+        name=payload.name,
+        student_id=payload.student_id,
+        items_payload=payload.items_payload,
+        checkin_date=payload.checkin_date,
+        morning_makeup=payload.morning_makeup,
+        attachment_item_types=payload.attachment_item_types or None,
+        attachments=files or None,
+        db=db,
+    )
 
 
 def _build_public_checkin(checkin: DailyCheckin) -> dict[str, Any]:
@@ -581,10 +670,40 @@ async def _read_validated_attachment(attachment: UploadFile) -> tuple[bytes, str
             detail=f"{attachment.filename} 超过 {settings.upload_max_file_size_mb} MB 限制",
         )
 
+    if _is_heic(file_bytes):
+        try:
+            file_bytes = await asyncio.to_thread(_heic_to_pdf, file_bytes)
+        except Exception:
+            logger.exception("heic_convert_failed filename=%s", attachment.filename)
+            raise HTTPException(status_code=400, detail=f"{attachment.filename} HEIC 转换失败，请换一张图片")
+        logger.info("heic_converted_to_pdf filename=%s pdf_size=%s", attachment.filename, len(file_bytes))
+
     detected_content_type = _detect_content_type(file_bytes)
     if detected_content_type not in ALLOWED_UPLOAD_TYPES:
         raise HTTPException(status_code=400, detail=f"{attachment.filename} 文件类型不支持")
     return file_bytes, detected_content_type
+
+
+def _is_heic(file_bytes: bytes) -> bool:
+    return (
+        len(file_bytes) >= 12
+        and file_bytes[4:8] == b"ftyp"
+        and file_bytes[8:12] in (b"heic", b"heix", b"hevc", b"hevx", b"heim", b"heis", b"mif1", b"msf1", b"heif")
+    )
+
+
+def _heic_to_pdf(file_bytes: bytes) -> bytes:
+    import io
+
+    from PIL import Image, ImageOps
+    from pillow_heif import register_heif_opener
+
+    register_heif_opener()
+    with Image.open(io.BytesIO(file_bytes)) as image:
+        image = ImageOps.exif_transpose(image).convert("RGB")
+        out = io.BytesIO()
+        image.save(out, format="PDF", resolution=150.0, quality=85)
+        return out.getvalue()
 
 
 def _detect_content_type(file_bytes: bytes) -> str:
@@ -609,7 +728,7 @@ def _format_attachment_filename(
     ext = _file_extension(original_filename, content_type)
     name = _sanitize_filename_part(checkin.name)
     student_id = _sanitize_filename_part(checkin.student_id)
-    item_label = ITEM_LABELS[item_type]
+    item_label = ITEM_LABELS[item_type] + ("补早起" if getattr(checkin, "makeup_bonus", False) else "")
     date_text = checkin.checkin_date.strftime("%Y%m%d")
     return f"{date_text}_{student_id}_{name}_{item_label}_{sequence:02d}{ext}"
 

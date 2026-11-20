@@ -1,14 +1,21 @@
+import json
 import time
 from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
-from fastapi import APIRouter, Response, Depends, HTTPException, Query, Request
+from fastapi import BackgroundTasks, APIRouter, Response, Depends, HTTPException, Query, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, asc, func
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.database import get_db
-from app.models import Admin, CheckinAttachment, CheckinItem, DailyCheckin
+from pydantic import BaseModel
+from app.models import Admin, CheckinAttachment, CheckinItem, DailyCheckin, MakeupReview
+from app.services.ai_review import load_config as load_ai_config, run_ai_review
+from app.services.makeup import apply_decision
+from app.services import forecast as forecast_service
+from app.models import ForecastSnapshot
 from app.schemas import (
     AdminParticipantDetail,
     AdminParticipantSummary,
@@ -40,6 +47,7 @@ from app.services.session import (
 )
 from app.services.oss import get_oss_client
 
+CHINA_TZ = ZoneInfo("Asia/Shanghai")
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 ITEM_ORDER = ["listening", "reading", "writing", "vocabulary", "speaking", "running"]
@@ -168,6 +176,7 @@ async def list_submissions(
     student_id: str = Query(None),
     start_date: str = Query(None),
     end_date: str = Query(None),
+    makeup: str = Query(None),
     sort_by: str = Query("checkin_date"),
     sort_order: str = Query("desc"),
     page: int = Query(1, ge=1),
@@ -195,6 +204,10 @@ async def list_submissions(
     if end_date:
         stmt = stmt.where(DailyCheckin.checkin_date <= end_date)
         count_stmt = count_stmt.where(DailyCheckin.checkin_date <= end_date)
+
+    if makeup == "1":
+        stmt = stmt.where(DailyCheckin.makeup_bonus.is_(True))
+        count_stmt = count_stmt.where(DailyCheckin.makeup_bonus.is_(True))
 
     if sort_by in {"name", "student_id", "checkin_date", "base_points", "total_points", "updated_at"}:
         order_col = getattr(DailyCheckin, sort_by)
@@ -391,6 +404,51 @@ async def _recalculate_activity_morning_bonus(db: AsyncSession, activity) -> Non
             checkin.total_points = total_points
 
 
+@router.get("/attachments/{attachment_id}/preview")
+async def preview_attachment(
+    attachment_id: str,
+    page: int = Query(0, ge=0, le=20),
+    width: int = Query(900, ge=200, le=2000),
+    _: str = Depends(get_current_admin_username),
+    db: AsyncSession = Depends(get_db),
+):
+    """把 PDF 的第 page 页渲染成 JPEG，方便浏览器直接当图片显示。"""
+    import asyncio
+    import io
+
+    attachment = (
+        await db.execute(select(CheckinAttachment).where(CheckinAttachment.id == attachment_id))
+    ).scalar_one_or_none()
+    if not attachment:
+        raise HTTPException(status_code=404, detail="附件不存在")
+
+    def render() -> tuple[bytes, int]:
+        import fitz
+        from PIL import Image
+
+        client = get_oss_client()
+        raw = client.client.get_object(Bucket=client.bucket_name, Key=attachment.oss_key)["Body"].read()
+        doc = fitz.open(stream=raw, filetype="pdf")
+        count = len(doc)
+        pg = doc[min(page, count - 1)]
+        zoom = width / max(pg.rect.width, 1)
+        png = pg.get_pixmap(matrix=fitz.Matrix(zoom, zoom)).tobytes("png")
+        with Image.open(io.BytesIO(png)) as im:
+            out = io.BytesIO()
+            im.convert("RGB").save(out, format="JPEG", quality=82)
+        return out.getvalue(), count
+
+    try:
+        data, count = await asyncio.to_thread(render)
+    except Exception:
+        raise HTTPException(status_code=422, detail="无法预览该文件")
+    return Response(
+        content=data,
+        media_type="image/jpeg",
+        headers={"X-Page-Count": str(count), "Cache-Control": "private, max-age=300"},
+    )
+
+
 @router.get("/attachments/{attachment_id}/download")
 async def download_attachment(
     attachment_id: str,
@@ -405,6 +463,197 @@ async def download_attachment(
 
     presigned_url = get_oss_client().get_presigned_url(attachment.oss_key, expire=3600)
     return {"download_url": presigned_url}
+
+
+@router.post("/submissions/{submission_id}/revoke-makeup")
+async def revoke_makeup(
+    submission_id: str,
+    admin_username: str = Depends(require_admin_csrf),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _human_decision(db, submission_id, "reject", "管理员在记录列表中撤销", admin_username)
+
+
+async def _human_decision(db: AsyncSession, checkin_id: str, decision: str, note: str, admin_username: str):
+    if decision not in {"accept", "reject"}:
+        raise HTTPException(status_code=400, detail="decision 必须是 accept 或 reject")
+    checkin = (await db.execute(select(DailyCheckin).where(DailyCheckin.id == checkin_id))).scalar_one_or_none()
+    if not checkin:
+        raise HTTPException(status_code=404, detail="记录不存在")
+    if not checkin.makeup_bonus:
+        raise HTTPException(status_code=400, detail="该记录不是补早起")
+    apply_decision(checkin, decision == "accept")
+    db.add(
+        MakeupReview(
+            checkin_id=checkin.id,
+            reviewer_type="human",
+            reviewer_name=admin_username,
+            decision=decision,
+            reason=(note or "").strip()[:1000] or None,
+            auto_applied=True,
+            created_at=datetime.now(CHINA_TZ),
+        )
+    )
+    await db.commit()
+    return {"success": True, "status": checkin.makeup_status, "total_points": checkin.total_points}
+
+
+def _iso_cn(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    return dt.replace(tzinfo=None).isoformat() + "+08:00"
+
+
+@router.get("/forecast")
+async def get_forecast(
+    _: str = Depends(get_current_admin_username),
+    db: AsyncSession = Depends(get_db),
+):
+    rows = (
+        await db.execute(select(ForecastSnapshot).order_by(desc(ForecastSnapshot.created_at)).limit(120))
+    ).scalars().all()
+    if not rows:
+        return {"latest": None, "history": []}
+    latest = json.loads(rows[0].payload)
+    history = []
+    for r in reversed(rows):
+        p = json.loads(r.payload)
+        history.append(
+            {
+                "t": p.get("generated_at"),
+                "completed_days": p.get("activity", {}).get("completed_days"),
+                "umbrella": p["umbrella"]["p50"],
+                "first": p["winners"]["first"]["p50"],
+                "second": p["winners"]["second"]["p50"],
+                "third": p["winners"]["third"]["p50"],
+            }
+        )
+    return {"latest": latest, "history": history}
+
+
+@router.post("/forecast/run")
+async def run_forecast_now(_: str = Depends(require_admin_csrf)):
+    return await forecast_service.compute_and_store()
+
+
+@router.get("/makeup/reviews")
+async def list_makeup_reviews(
+    _: str = Depends(get_current_admin_username),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(DailyCheckin)
+        .where(DailyCheckin.makeup_bonus.is_(True))
+        .options(selectinload(DailyCheckin.items).selectinload(CheckinItem.attachments))
+        .order_by(asc(DailyCheckin.first_submitted_at))
+    )
+    checkins = result.scalars().all()
+    ids = [c.id for c in checkins]
+    reviews_by: dict[str, list] = {}
+    if ids:
+        rr = await db.execute(
+            select(MakeupReview).where(MakeupReview.checkin_id.in_(ids)).order_by(desc(MakeupReview.created_at))
+        )
+        for r in rr.scalars():
+            reviews_by.setdefault(r.checkin_id, []).append(r)
+
+    cfg = load_ai_config()
+    items = []
+    counts: dict[str, int] = {}
+    for c in checkins:
+        counts[c.makeup_status] = counts.get(c.makeup_status, 0) + 1
+        atts = [
+            {"id": a.id, "item_type": it.item_type, "file_name": a.file_name, "file_type": a.file_type}
+            for it in c.items
+            for a in it.attachments
+            if "补早起" in (a.file_name or "")
+        ]
+        items.append(
+            {
+                "id": c.id,
+                "name": c.name,
+                "student_id": c.student_id,
+                "checkin_date": c.checkin_date.isoformat(),
+                "status": c.makeup_status,
+                "base_points": c.base_points,
+                "total_points": c.total_points,
+                "earned_morning_bonus": c.earned_morning_bonus,
+                "first_submitted_at": _iso_cn(c.first_submitted_at),
+                "items": [it.item_type for it in c.items],
+                "attachments": atts,
+                "reviews": [
+                    {
+                        "id": r.id,
+                        "reviewer_type": r.reviewer_type,
+                        "reviewer_name": r.reviewer_name,
+                        "decision": r.decision,
+                        "confidence": r.confidence,
+                        "observed_times": json.loads(r.observed_times) if r.observed_times else [],
+                        "reason": r.reason,
+                        "attachments_checked": r.attachments_checked,
+                        "auto_applied": r.auto_applied,
+                        "created_at": _iso_cn(r.created_at),
+                    }
+                    for r in reviews_by.get(c.id, [])
+                ],
+            }
+        )
+    return {
+        "items": items,
+        "counts": counts,
+        "ai_configured": bool(cfg["api_key"]),
+        "ai_model": cfg["model"],
+        "ai_accept_threshold": cfg["accept_threshold"],
+        "ai_reject_threshold": cfg["reject_threshold"],
+    }
+
+
+class MakeupDecisionIn(BaseModel):
+    decision: str
+    note: str | None = None
+
+
+@router.post("/makeup/{checkin_id}/decision")
+async def makeup_decision(
+    checkin_id: str,
+    payload: MakeupDecisionIn,
+    admin_username: str = Depends(require_admin_csrf),
+    db: AsyncSession = Depends(get_db),
+):
+    return await _human_decision(db, checkin_id, payload.decision, payload.note or "", admin_username)
+
+
+@router.post("/makeup/ai-review-pending")
+async def makeup_ai_review_pending(
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin_csrf),
+    db: AsyncSession = Depends(get_db),
+):
+    if not load_ai_config()["api_key"]:
+        raise HTTPException(status_code=400, detail="尚未配置 AI 审核密钥")
+    rows = await db.execute(
+        select(DailyCheckin.id).where(DailyCheckin.makeup_bonus.is_(True), DailyCheckin.makeup_status == "pending")
+    )
+    ids = [r[0] for r in rows.all()]
+    for cid in ids:
+        background_tasks.add_task(run_ai_review, cid)
+    return {"queued": len(ids)}
+
+
+@router.post("/makeup/{checkin_id}/ai-review")
+async def makeup_ai_review_one(
+    checkin_id: str,
+    background_tasks: BackgroundTasks,
+    _: str = Depends(require_admin_csrf),
+    db: AsyncSession = Depends(get_db),
+):
+    if not load_ai_config()["api_key"]:
+        raise HTTPException(status_code=400, detail="尚未配置 AI 审核密钥")
+    checkin = (await db.execute(select(DailyCheckin).where(DailyCheckin.id == checkin_id))).scalar_one_or_none()
+    if not checkin or not checkin.makeup_bonus:
+        raise HTTPException(status_code=404, detail="补早起记录不存在")
+    background_tasks.add_task(run_ai_review, checkin_id)
+    return {"queued": 1}
 
 
 @router.delete("/submissions/{submission_id}")
@@ -427,6 +676,8 @@ async def delete_submission(
         for attachment in item.attachments:
             get_oss_client().delete_file(attachment.oss_key)
 
+    for review in (await db.execute(select(MakeupReview).where(MakeupReview.checkin_id == submission.id))).scalars():
+        await db.delete(review)
     await db.delete(submission)
     await db.commit()
 

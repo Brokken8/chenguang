@@ -56,6 +56,9 @@ export interface DailyCheckin {
   first_submitted_at: string;
   first_valid_at: string | null;
   earned_morning_bonus: boolean;
+  makeup_bonus?: boolean;
+  makeup_revoked?: boolean;
+  makeup_status?: string;
   base_points: number;
   total_points: number;
   total_volume: number;

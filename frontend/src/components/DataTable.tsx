@@ -12,6 +12,8 @@ import {
   Users,
   X,
 } from "lucide-react";
+import MakeupReviewPanel from "./MakeupReviewPanel";
+import ForecastPanel from "./ForecastPanel";
 import {
   deleteSubmission,
   getAdminActivity,
@@ -37,7 +39,7 @@ interface DataTableProps {
   onLogout: () => void;
 }
 
-type TabKey = "records" | "rankings" | "participants" | "settings";
+type TabKey = "records" | "rankings" | "participants" | "makeup" | "forecast" | "settings";
 
 const ITEM_LABELS: Record<CheckinItemType, string> = {
   listening: "听力",
@@ -66,6 +68,7 @@ export default function DataTable({ onLogout }: DataTableProps) {
   const [filterStudentId, setFilterStudentId] = useState("");
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
+  const [filterMakeup, setFilterMakeup] = useState(false);
   const [settingsMessage, setSettingsMessage] = useState("");
 
   const fetchRecords = useCallback(
@@ -80,6 +83,7 @@ export default function DataTable({ onLogout }: DataTableProps) {
         if (filterStudentId) params.student_id = filterStudentId;
         if (filterStart) params.start_date = filterStart;
         if (filterEnd) params.end_date = filterEnd;
+        if (filterMakeup) params.makeup = "1";
 
         const res = await listSubmissions(params);
         setRecords(res.items);
@@ -91,7 +95,7 @@ export default function DataTable({ onLogout }: DataTableProps) {
         setLoading(false);
       }
     },
-    [filterEnd, filterName, filterStart, filterStudentId, pageSize]
+    [filterEnd, filterMakeup, filterName, filterStart, filterStudentId, pageSize]
   );
 
   const fetchRankings = useCallback(async () => {
@@ -226,6 +230,7 @@ export default function DataTable({ onLogout }: DataTableProps) {
       学号: row.student_id,
       基础分: row.base_points,
       早起加分: row.earned_morning_bonus ? 1 : 0,
+      补早起: row.makeup_bonus ? (row.makeup_revoked ? "已撤销" : "是") : "否",
       总分: row.total_points,
       项目: describeItems(row),
       更新时间: formatDateTime(row.updated_at),
@@ -268,13 +273,21 @@ export default function DataTable({ onLogout }: DataTableProps) {
             <Users size={15} />
             参与同学
           </TabButton>
+          <TabButton active={tab === "makeup"} onClick={() => setTab("makeup")}>
+            <Eye size={15} />
+            补早起审核
+          </TabButton>
+          <TabButton active={tab === "forecast"} onClick={() => setTab("forecast")}>
+            <Trophy size={15} />
+            留存预测
+          </TabButton>
           <TabButton active={tab === "settings"} onClick={() => setTab("settings")}>
             <Settings size={15} />
             活动设置
           </TabButton>
         </div>
         <div className="grid grid-cols-3 gap-2 sm:flex sm:items-center">
-          {tab !== "settings" && (
+          {tab !== "settings" && tab !== "makeup" && tab !== "forecast" && (
             <button
               onClick={handleExport}
               className="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 sm:py-1.5"
@@ -316,6 +329,8 @@ export default function DataTable({ onLogout }: DataTableProps) {
           filterStudentId={filterStudentId}
           filterStart={filterStart}
           filterEnd={filterEnd}
+          filterMakeup={filterMakeup}
+          setFilterMakeup={setFilterMakeup}
           setFilterName={setFilterName}
           setFilterStudentId={setFilterStudentId}
           setFilterStart={setFilterStart}
@@ -327,6 +342,10 @@ export default function DataTable({ onLogout }: DataTableProps) {
           onOpenParticipant={handleOpenParticipant}
         />
       )}
+
+      {tab === "makeup" && <MakeupReviewPanel />}
+
+      {tab === "forecast" && <ForecastPanel />}
 
       {tab === "rankings" && <RankingsView rankings={rankings} loading={loading} />}
 
@@ -407,6 +426,8 @@ function RecordsView({
   filterStudentId,
   filterStart,
   filterEnd,
+  filterMakeup,
+  setFilterMakeup,
   setFilterName,
   setFilterStudentId,
   setFilterStart,
@@ -426,6 +447,8 @@ function RecordsView({
   filterStudentId: string;
   filterStart: string;
   filterEnd: string;
+  filterMakeup: boolean;
+  setFilterMakeup: (value: boolean) => void;
   setFilterName: (value: string) => void;
   setFilterStudentId: (value: string) => void;
   setFilterStart: (value: string) => void;
@@ -465,6 +488,14 @@ function RecordsView({
           onChange={(event) => setFilterEnd(event.target.value)}
           className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-100 lg:w-auto lg:py-1.5"
         />
+        <label className="flex items-center gap-1 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={filterMakeup}
+            onChange={(event) => setFilterMakeup(event.target.checked)}
+          />
+          只看补早起
+        </label>
         <button
           onClick={() => fetchRecords(1)}
           className="flex items-center justify-center gap-1 rounded-lg bg-emerald-600 px-3 py-2 text-sm text-white hover:bg-emerald-700 lg:py-1.5"
@@ -517,7 +548,26 @@ function RecordsView({
                     <div className="text-xs text-gray-500">{record.student_id}</div>
                   </td>
                   <td className="px-4 py-3">
-                    <div className="font-semibold text-gray-900">{record.total_points} 分</div>
+                    <div className="font-semibold text-gray-900">
+                      {record.total_points} 分
+                      {record.makeup_bonus && (
+                        <span
+                          className={`ml-2 rounded px-1.5 py-0.5 text-xs font-medium ${
+                            record.makeup_status === "rejected" || record.makeup_revoked
+                              ? "bg-gray-100 text-gray-500 line-through"
+                              : "bg-amber-100 text-amber-800"
+                          }`}
+                        >
+                          {record.makeup_status === "approved"
+                            ? "补早起·已通过"
+                            : record.makeup_status === "rejected" || record.makeup_revoked
+                              ? "补早起·已拒绝"
+                              : record.makeup_status === "needs_human"
+                                ? "补早起·待人工审核"
+                                : "补早起·待AI审核"}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-500">
                       基础 {record.base_points}，早起 {record.earned_morning_bonus ? 1 : 0}
                     </div>
@@ -538,6 +588,7 @@ function RecordsView({
                         <Eye size={14} />
                         详情
                       </button>
+
                       <button
                         onClick={() => onDelete(record.id)}
                         className="inline-flex items-center gap-1 text-red-600 hover:text-red-800"
