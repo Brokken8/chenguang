@@ -55,6 +55,9 @@ class DailyCheckin(Base):
     first_submitted_at = Column(DateTime(timezone=True), nullable=False)
     first_valid_at = Column(DateTime(timezone=True), nullable=True)
     earned_morning_bonus = Column(Boolean, nullable=False, default=False)
+    makeup_bonus = Column(Boolean, nullable=False, default=False)
+    makeup_revoked = Column(Boolean, nullable=False, default=False)
+    makeup_status = Column(String(20), nullable=False, default="none")
     base_points = Column(Integer, nullable=False, default=0)
     total_points = Column(Integer, nullable=False, default=0)
     total_volume = Column(Float, nullable=False, default=0)
@@ -115,3 +118,32 @@ class CheckinAttachment(Base):
     uploaded_at = Column(DateTime(timezone=True), server_default=func.now())
 
     item = relationship("CheckinItem", back_populates="attachments")
+
+
+class MakeupReview(Base):
+    """补早起审核记录：AI 与人工的每一次审核都留一条。"""
+
+    __tablename__ = "makeup_reviews"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    checkin_id = Column(String(36), ForeignKey("daily_checkins.id", ondelete="CASCADE"), nullable=False, index=True)
+    reviewer_type = Column(String(10), nullable=False)  # ai / human
+    reviewer_name = Column(String(100), nullable=False)  # AI 为模型名，人工为管理员用户名
+    decision = Column(String(15), nullable=False)  # accept / reject / uncertain / error
+    confidence = Column(Float, nullable=True)
+    observed_times = Column(Text, nullable=True)
+    reason = Column(Text, nullable=True)
+    model = Column(String(100), nullable=True)
+    attachments_checked = Column(Integer, nullable=True)
+    auto_applied = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False)
+
+
+class ForecastSnapshot(Base):
+    """留存预测的历史快照（每小时一份，只存汇总数字，不含个人信息）。"""
+
+    __tablename__ = "forecast_snapshots"
+
+    id = Column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    created_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    payload = Column(Text, nullable=False)
