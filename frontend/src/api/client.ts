@@ -406,7 +406,13 @@ export interface ForecastData {
   winners: { first: ForecastWinner; second: ForecastWinner; third: ForecastWinner };
   daily: { date: string; p10: number; p50: number; p90: number }[];
   observed_daily_active: { date: string; n: number }[];
-  params: Record<string, number | number[]>;
+  params: {
+    stay_obs: number[];
+    return_obs: number[];
+    stay_posterior_mean: number;
+    return_by_gap?: { obs: number[]; mean: number }[];
+    today_fraction?: number;
+  };
   runs: number;
   compute_seconds: number;
   prior_driven: boolean;
