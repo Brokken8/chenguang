@@ -13,8 +13,13 @@ function Range({ s }: { s: ForecastSummary }) {
   );
 }
 
+const percent = (v: number) => `${Math.round(v * 100)}%`;
+
 function Chart({ data }: { data: ForecastData }) {
   const obs = data.observed_daily_active;
+  // 今天还没结束：当天人数不是最终值，单独标出，不连进实际曲线
+  const done = obs.filter((o) => o.date !== data.activity.today);
+  const partial = obs.find((o) => o.date === data.activity.today);
   const pred = data.daily;
   const all = [...obs.map((o) => o.date), ...pred.map((p) => p.date)];
   const dates = Array.from(new Set(all)).sort();
@@ -29,7 +34,7 @@ function Chart({ data }: { data: ForecastData }) {
     " " +
     [...pred].reverse().map((p) => `${x(p.date)},${y(p.p10)}`).join(" ");
   const med = pred.map((p) => `${x(p.date)},${y(p.p50)}`).join(" ");
-  const real = obs.map((o) => `${x(o.date)},${y(o.n)}`).join(" ");
+  const real = done.map((o) => `${x(o.date)},${y(o.n)}`).join(" ");
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full">
       {[0, 0.25, 0.5, 0.75, 1].map((f) => (
@@ -43,9 +48,17 @@ function Chart({ data }: { data: ForecastData }) {
       <polygon points={band} fill="#10b981" opacity="0.18" />
       <polyline points={med} fill="none" stroke="#059669" strokeWidth="2" strokeDasharray="5 3" />
       <polyline points={real} fill="none" stroke="#111827" strokeWidth="2" />
-      {obs.map((o) => (
+      {done.map((o) => (
         <circle key={o.date} cx={x(o.date)} cy={y(o.n)} r="3" fill="#111827" />
       ))}
+      {partial && (
+        <g>
+          <circle cx={x(partial.date)} cy={y(partial.n)} r="3.5" fill="#fff" stroke="#6b7280" strokeWidth="1.5" />
+          <text x={x(partial.date)} y={y(partial.n) + 14} fontSize="9" textAnchor="middle" fill="#6b7280">
+            今日进行中 {partial.n}
+          </text>
+        </g>
+      )}
       {dates
         .filter((_, i) => i % Math.max(1, Math.ceil(dates.length / 8)) === 0)
         .map((d) => (
@@ -144,14 +157,14 @@ export default function ForecastPanel() {
           <div className="mb-4 rounded-lg border border-gray-200 bg-white p-3">
             <div className="mb-1 text-sm font-medium text-gray-800">每日有效打卡人数：实际与预测</div>
             <Chart data={d} />
-            <div className="mt-1 text-xs text-gray-500">黑线为实际人数，绿色虚线为预测中位数，浅绿带是 80% 区间。</div>
+            <div className="mt-1 text-xs text-gray-500">黑线为已结束打卡日的实际人数，空心点是今天截至更新时的人数（还会增加）；绿色虚线为预测中位数，浅绿带是 80% 区间。</div>
           </div>
 
           <details className="rounded-lg border border-gray-200 bg-white p-3 text-sm text-gray-600">
             <summary className="cursor-pointer text-gray-800">模型说明与局限</summary>
             <ul className="mt-2 list-disc space-y-1 pl-5 leading-6">
               <li>
-                每人每天只有"打卡 / 没打卡"。用"昨天打了今天还打的概率"和"昨天没打今天回来的概率"描述习惯，
+                每人每天只有"打卡 / 没打卡"。分别估计"昨天打了今天还打"和"连续缺 1 天 / 2 天 / 3 天及以上后回来"的概率，
                 按贝叶斯方法随数据更新，并把每个人的概率向全体平均收缩。
               </li>
               <li>
@@ -159,13 +172,20 @@ export default function ForecastPanel() {
                 高等奖落选的人仍可参评低等奖；毅力之证与其他奖叠加。
               </li>
               <li>
-                当前全体估计：连续打卡的概率 {String(d.params.stay_posterior_mean)}、断后回来的概率{" "}
-                {String(d.params.return_posterior_mean)}（依据 {JSON.stringify(d.params.stay_obs)} 次与{" "}
-                {JSON.stringify(d.params.return_obs)} 次观测）。观测为 0 时完全是先验假设。
+                当前全体估计：昨天打了今天继续的概率 {percent(d.params.stay_posterior_mean)}（{d.params.stay_obs.join(" / ")} 次观测）
+                {d.params.return_by_gap?.map((g, i) => (
+                  <span key={i}>
+                    ；{["缺 1 天", "缺 2 天", "缺 3 天及以上"][i]}后回来 {percent(g.mean)}（{g.obs.join(" / ")}）
+                  </span>
+                ))}
+                。观测少的项主要靠先验假设。
+              </li>
+              <li>
+                今天还没打卡的人，按往常此刻之后才打卡的比例折算今天打卡的可能。
               </li>
               <li>未考虑：考试周、放假、奖项公布等会改变打卡习惯的事件；同天数同积分的名次并列；新同学加入按逐日衰减估计。</li>
               <li>"连续"按活动期内最长连续天数计算，"≥22 天"按含 22 天理解。</li>
-              <li>每小时自动重算一次，单次计算约 {d.compute_seconds} 秒。</li>
+              <li>每小时自动重算一次，单次计算约 {d.compute_seconds} 秒。2026-11-26 起启用当前模型，此前的历史预测值来自旧模型。</li>
             </ul>
           </details>
 

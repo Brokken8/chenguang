@@ -1,9 +1,10 @@
 """打卡留存预测：用贝叶斯 + 蒙特卡洛模拟，预测活动结束时满足各奖项条件的人数。
 
-模型（每个同学每天只有“打卡/没打卡”两种状态）：
-- 状态转移：昨天打了 → 今天继续打的概率 p_stay；昨天没打 → 今天回来打的概率 p_return。
-- 全体的 p_stay、p_return 用 Beta 先验 + 已观察到的转移次数更新；数据少时主要靠先验，区间会很宽。
-- 每个人的概率向全体均值收缩（经验贝叶斯）：自己的历史越多，越接近自己的习惯。
+模型（每个同学每天只有“打卡/没打卡”，状态是“已经连续缺了几天”：0、1、2、3 天及以上）：
+- 状态转移：昨天打了 → 今天继续打的概率；连续缺 1 / 2 / ≥3 天 → 今天回来打的概率。缺得越久通常越难回来。
+- 全体各状态的概率用 Beta 先验 + 已观察到的转移次数更新；数据少时主要靠先验，区间会很宽。
+- 每个人的概率向全体均值收缩（经验贝叶斯），收缩强度由数据里人与人的差异大小决定。
+- 今天还没结束：还没打卡的人，按“往常这个时刻之后才打卡的比例”折算今天打卡的概率。
 - 允许新同学陆续加入（人数逐日衰减）。
 - 蒙特卡洛把剩余天数各模拟很多次，统计最终的累计天数、最长连续天数，再套用奖项规则。
 纯 Python 实现，不依赖 numpy；几百人、二十多天，一次计算在几秒内。
@@ -11,15 +12,21 @@
 import asyncio
 import json
 import logging
+import math
 import random
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from sqlalchemy import delete, desc, select
 
 from app.database import AsyncSessionLocal
 from app.models import DailyCheckin, ForecastSnapshot
-from app.services.activity import get_checkin_date_at, get_or_create_activity_settings
+from app.services.activity import (
+    get_checkin_date_at,
+    get_or_create_activity_settings,
+    parse_time_value,
+    to_china_datetime,
+)
 
 logger = logging.getLogger(__name__)
 CHINA_TZ = ZoneInfo("Asia/Shanghai")
@@ -32,10 +39,12 @@ PRIZES = [  # (名称, 连续天数下限, 名额)，依次从高到低，已获
     ("三等奖", 18, 12),
 ]
 
-# 先验：(均值, 等效样本量)。这是没有数据时的起点，随数据增多逐渐被覆盖
-PRIOR_STAY = (0.85, 6.0)
-PRIOR_RETURN = (0.20, 4.0)
-SHRINK_K = 12.0  # 个人向全体均值收缩的强度
+# 先验：(均值, 等效样本量)，依次对应昨天打了、连续缺 1 天、缺 2 天、缺 ≥3 天。
+# 这是没有数据时的起点，随数据增多逐渐被覆盖
+PRIORS = [(0.85, 6.0), (0.25, 4.0), (0.12, 4.0), (0.05, 6.0)]
+N_STATES = len(PRIORS)
+SHRINK_GRID = (1.0, 2.0, 4.0, 8.0, 12.0, 16.0, 32.0, 64.0)  # 个人向全体收缩强度的候选值
+SHRINK_DEFAULT = 12.0
 
 
 def _quantiles(values: list[float], qs=(0.1, 0.5, 0.9)) -> list[float]:
@@ -61,27 +70,67 @@ def _load_history(rows, start: date, today: date):
     return students, completed, first_seen
 
 
+def _next_gap(gap: int, active: bool) -> int:
+    return 0 if active else min(N_STATES - 1, gap + 1)
+
+
 def _counts(students):
-    S = B = R = O = 0
+    """返回全体与每人的各状态 [打卡次数, 缺卡次数]。只统计已完成日之间的转移。"""
+    total = [[0, 0] for _ in range(N_STATES)]
     per = []
     for st in students:
-        s = b = r = o = 0
-        prev = None
+        mine = [[0, 0] for _ in range(N_STATES)]
+        gap = None
         for _, a in st["seq"]:
-            if prev is not None:
-                if prev and a:
-                    s += 1
-                elif prev and not a:
-                    b += 1
-                elif (not prev) and a:
-                    r += 1
-                else:
-                    o += 1
-            prev = a
-        # 昨天(最后一个已完成日) → 今天，只有今天已打卡的才算已知转移，避免半天数据偏向“没打”
-        per.append((s, b, r, o))
-        S, B, R, O = S + s, B + b, R + r, O + o
-    return S, B, R, O, per
+            if gap is None:
+                gap = 0 if a else 1
+                continue
+            mine[gap][0 if a else 1] += 1
+            total[gap][0 if a else 1] += 1
+            gap = _next_gap(gap, a)
+        per.append(mine)
+    return total, per
+
+
+def _current_gap(st) -> int:
+    gap = None
+    for _, a in st["seq"]:
+        gap = (0 if a else 1) if gap is None else _next_gap(gap, a)
+    return 1 if gap is None else gap
+
+
+def _fit_shrink(pairs: list[list[int]], mean: float) -> float:
+    """用 Beta-二项边际似然挑收缩强度：人与人差异越大，收缩越弱。数据少时偏向默认值。"""
+    data = [(s, f) for s, f in pairs if s + f > 0]
+
+    def score(k: float) -> float:
+        a, b = k * mean, k * (1 - mean)
+        base = math.lgamma(a + b) - math.lgamma(a) - math.lgamma(b)
+        ll = sum(base + math.lgamma(a + s) + math.lgamma(b + f) - math.lgamma(a + b + s + f) for s, f in data)
+        return ll - math.log2(k / SHRINK_DEFAULT) ** 2 / (2 * 1.5**2)
+
+    return max(SHRINK_GRID, key=score)
+
+
+def _today_probability(p: float, fraction: float) -> float:
+    """今天打卡概率为 p、往常此刻已有 fraction 的打卡发生时，至今未打卡的人今天仍会打卡的概率。"""
+    if fraction >= 1:
+        return 0.0
+    return p * (1 - fraction) / max(1e-9, 1 - p * fraction)
+
+
+def arrival_fraction(rows, completed: list[date], now: datetime, today: date, day_start: time) -> float:
+    """rows: (checkin_date, first_valid_at)。已完成日里，到“当天同一时刻”为止到达的有效打卡占比。"""
+
+    def offset(moment: datetime, d: date) -> timedelta:
+        return to_china_datetime(moment).replace(tzinfo=None) - datetime.combine(d, day_start)
+
+    done = set(completed)
+    offsets = [offset(t, d) for d, t in rows if t is not None and d in done]
+    if not offsets:
+        return 0.0
+    limit = offset(now, today)
+    return sum(1 for o in offsets if o <= limit) / len(offsets)
 
 
 def _stats_of_history(st):
@@ -97,11 +146,24 @@ def _stats_of_history(st):
     return total, longest, run, last_active
 
 
-def simulate(students, completed, today: date, end: date, n_runs: int = 600, seed: int | None = None) -> dict:
+def simulate(
+    students,
+    completed,
+    today: date,
+    end: date,
+    n_runs: int = 600,
+    seed: int | None = None,
+    today_fraction: float = 0.0,
+) -> dict:
     rng = random.Random(seed)
     rem_days = [today + timedelta(days=i) for i in range((end - today).days + 1)]  # 含今天
     n_rem = len(rem_days)
-    S, B, R, O, per = _counts(students)
+    total_counts, per = _counts(students)
+    shrink = []
+    for g, (m, w) in enumerate(PRIORS):
+        s, f = total_counts[g]
+        shrink.append(_fit_shrink([mine[g] for mine in per], (m * w + s) / (w + s + f)))
+    gaps = [_current_gap(st) for st in students]
     hist = [_stats_of_history(st) for st in students]
     today_known = [st["today"] for st in students]
 
@@ -122,34 +184,38 @@ def simulate(students, completed, today: date, end: date, n_runs: int = 600, see
     beta = rng.betavariate
 
     for _ in range(n_runs):
-        ps_g = beta(PRIOR_STAY[0] * PRIOR_STAY[1] + S, (1 - PRIOR_STAY[0]) * PRIOR_STAY[1] + B)
-        pr_g = beta(PRIOR_RETURN[0] * PRIOR_RETURN[1] + R, (1 - PRIOR_RETURN[0]) * PRIOR_RETURN[1] + O)
+        group = [beta(m * w + total_counts[g][0], (1 - m) * w + total_counts[g][1]) for g, (m, w) in enumerate(PRIORS)]
         days_active = [0] * n_rem
         um = c22 = c20 = c18 = 0
 
-        def run_person(total, longest, run, last_active, ps, pr, known_today, start_idx=0):
+        def run_person(total, longest, run, gap, probs, known_today, start_idx=0):
             for k in range(start_idx, n_rem):
                 if k == 0 and known_today:
                     a = True
                 else:
-                    a = rng.random() < (ps if last_active else pr)
+                    p = probs[gap]
+                    if k == 0:
+                        p = _today_probability(p, today_fraction)
+                    a = rng.random() < p
                 if a:
                     total += 1
                     run += 1
                     if run > longest:
                         longest = run
                     days_active[k] += 1
+                    gap = 0
                 else:
                     run = 0
-                last_active = a
+                    gap = min(N_STATES - 1, gap + 1)
             return total, longest
 
         for i, st in enumerate(students):
-            s, b, r, o = per[i]
-            ps_i = beta(SHRINK_K * ps_g + s, SHRINK_K * (1 - ps_g) + b)
-            pr_i = beta(SHRINK_K * pr_g + r, SHRINK_K * (1 - pr_g) + o)
-            total, longest, run, last = hist[i]
-            total, longest = run_person(total, longest, run, last, ps_i, pr_i, today_known[i])
+            probs = [
+                beta(shrink[g] * group[g] + per[i][g][0], shrink[g] * (1 - group[g]) + per[i][g][1])
+                for g in range(N_STATES)
+            ]
+            total, longest, run, _ = hist[i]
+            total, longest = run_person(total, longest, run, gaps[i], probs, today_known[i])
             if total >= UMBRELLA_DAYS:
                 um += 1
             if longest >= 22:
@@ -164,7 +230,7 @@ def simulate(students, completed, today: date, end: date, n_runs: int = 600, see
             n_new = _poisson(rng, lam[k])
             for _j in range(n_new):
                 days_active[k] += 1
-                total, longest = run_person(1, 1, 1, True, ps_g, pr_g, False, start_idx=k + 1)
+                total, longest = run_person(1, 1, 1, 0, group, False, start_idx=k + 1)
                 if total >= UMBRELLA_DAYS:
                     um += 1
                 if longest >= 22:
@@ -205,20 +271,29 @@ def simulate(students, completed, today: date, end: date, n_runs: int = 600, see
             for k in range(n_rem)
         ],
         "params": {
-            "stay_obs": [S, S + B],
-            "return_obs": [R, R + O],
-            "stay_posterior_mean": round((PRIOR_STAY[0] * PRIOR_STAY[1] + S) / (PRIOR_STAY[1] + S + B), 3),
-            "return_posterior_mean": round((PRIOR_RETURN[0] * PRIOR_RETURN[1] + R) / (PRIOR_RETURN[1] + R + O), 3),
+            "stay_obs": [total_counts[0][0], sum(total_counts[0])],
+            "return_obs": [sum(c[0] for c in total_counts[1:]), sum(sum(c) for c in total_counts[1:])],
+            "stay_posterior_mean": _posterior_mean(total_counts, 0),
+            "return_by_gap": [
+                {"obs": [total_counts[g][0], sum(total_counts[g])], "mean": _posterior_mean(total_counts, g)}
+                for g in range(1, N_STATES)
+            ],
+            "shrink": shrink,
+            "today_fraction": round(today_fraction, 3),
             "new_joiners_day0": round(lam0, 1),
         },
     }
 
 
+def _posterior_mean(total_counts, g: int) -> float:
+    m, w = PRIORS[g]
+    s, f = total_counts[g]
+    return round((m * w + s) / (w + s + f), 3)
+
+
 def _poisson(rng: random.Random, lam: float) -> int:
     if lam <= 0:
         return 0
-    import math
-
     L = math.exp(-lam)
     k, p = 0, 1.0
     while True:
@@ -237,20 +312,34 @@ async def compute_forecast(n_runs: int = 600) -> dict:
         today = get_checkin_date_at(activity, now)
         rows = (
             await db.execute(
-                select(DailyCheckin.student_id, DailyCheckin.checkin_date, DailyCheckin.base_points).where(
+                select(
+                    DailyCheckin.student_id,
+                    DailyCheckin.checkin_date,
+                    DailyCheckin.base_points,
+                    DailyCheckin.first_valid_at,
+                ).where(
                     DailyCheckin.checkin_date >= start, DailyCheckin.checkin_date <= end
                 )
             )
         ).all()
 
-    students, completed, _ = _load_history(rows, start, min(today, end))
+    # 活动结束后最后一天也算作已完成
+    cutoff = min(today, end + timedelta(days=1))
+    students, completed, _ = _load_history([r[:3] for r in rows], start, cutoff)
+    fraction = arrival_fraction(
+        [(d, t) for _, d, pts, t in rows if pts > 0],
+        completed,
+        to_china_datetime(now),
+        cutoff,
+        parse_time_value(activity.checkin_start_time),
+    )
     day_index = (min(today, end) - start).days + 1
     observed_daily = {}
-    for _sid, d, pts in rows:
+    for _sid, d, pts, _t in rows:
         if pts > 0:
             observed_daily[d] = observed_daily.get(d, 0) + 1
     t0 = datetime.now()
-    result = await asyncio.to_thread(simulate, students, completed, min(today, end), end, n_runs)
+    result = await asyncio.to_thread(simulate, students, completed, cutoff, end, n_runs, None, fraction)
     # 当前实际已满足条件的人数（不含预测）
     cur_um = cur22 = cur20 = cur18 = 0
     for st in students:
